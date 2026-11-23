@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Print order · Indwoke DEMO</title>
+<style>
+:root{--bg:#EEF2F7;--card:#fff;--ink:#1C2330;--ink2:#4A5568;--blue:#244570;--green:#21794A;--red:#B8291F;--sep:#D6DEE8}
+@media (prefers-color-scheme:dark){:root{--bg:#0B111C;--card:#151D2B;--ink:#EEF2F7;--ink2:#B4C0D0;--blue:#8FB3E8;--green:#5CC98A;--red:#F08A80;--sep:#2A3547}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
+main{max-width:560px;margin:0 auto;padding:20px 16px 40px}h1{font-size:22px;margin:4px 0 2px;color:var(--blue)}.m{color:var(--ink2);font-size:14px}
+.card{background:var(--card);border-radius:14px;padding:14px 16px;margin:14px 0;border:1px solid var(--sep)}
+table{width:100%;border-collapse:collapse}td{padding:8px 0;border-bottom:1px solid var(--sep)}td.r{text-align:right;font-weight:700}
+label{display:block;font-weight:700;margin:10px 0 4px}input,textarea{width:100%;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--sep);background:var(--bg);color:var(--ink)}
+button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:12px 16px;width:100%;margin-top:12px;background:var(--blue);color:#fff;cursor:pointer}
+button.alt{background:var(--green)}.st{display:inline-block;font-weight:700;padding:2px 10px;border-radius:99px;background:var(--bg)}.err{color:var(--red);font-weight:700;min-height:1.4em}.ok{color:var(--green);font-weight:700}
+</style></head><body><main>
+<div class="m">DEMO NGO · PRAJA pilot</div>
+<h1 id="h">Print order</h1>
+<div id="v" class="m">Loading…</div>
+</main>
+<script src="demo-config.js"></script>
+<script>
+const API=(window.DEMO_API||""),q=new URLSearchParams(location.search),O=q.get("o")||"",T=q.get("t")||"";
+const $=s=>document.querySelector(s),esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const dmy=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||"")?d.slice(8,10)+"/"+d.slice(5,7)+"/"+d.slice(0,4):"";
+const call=b=>fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({o:O,t:T},b))}).then(r=>r.json());
+const LABEL={raised:"Waiting for approval",approved:"Approved",sent:"Sent to you",accepted:"Accepted",delivered:"Delivered",received:"Received — thank you",cancelled:"Cancelled"};
+function show(r,msg){
+  if(!r.order){$("#v").innerHTML=`<p class="err">${esc(r.error||"This link is not valid.")}</p>`;return}
+  const o=r.order;$("#h").textContent="Print order "+o.id;
+  let h=`<div class="card"><div class="m">For ${esc(o.supplier)}</div><p><span class="st">${esc(LABEL[o.status]||o.status)}</span>${o.deliveryDate?` · delivery by <b>${dmy(o.deliveryDate)}</b>`:""}</p>
+   <table>${o.lines.map(l=>`<tr><td>${esc(l.name)}</td><td class="r">${l.qty} copies</td></tr>`).join("")}</table>${o.note?`<p class="m">Note: ${esc(o.note)}</p>`:""}</div>`;
+  if(msg) h+=`<p class="ok">${esc(msg)}</p>`;
+  if(r.error) h+=`<p class="err">${esc(r.error)}</p>`;
+  if(["sent","approved","accepted"].includes(o.status)) h+=`<div class="card"><b>1. Accept the order</b><label for="d">Delivery date</label><input id="d" type="date" value="${esc(o.deliveryDate)}"><label for="n">Note (optional)</label><input id="n" maxlength="300" placeholder="e.g. will deliver to Ganga office"><button id="acc">${o.status==="accepted"?"Update delivery date":"Accept order"}</button></div>`;
+  if(["sent","approved","accepted","delivered"].includes(o.status)) h+=`<div class="card"><b>2. When delivered</b><label for="a">Bill amount (₹)</label><input id="a" inputmode="decimal" value="${esc(o.amount)}"><label for="i">Bill / invoice number</label><input id="i" value="${esc(o.invoiceNo)}"><button class="alt" id="del">${o.status==="delivered"?"Update bill":"Mark delivered"}</button></div>`;
+  h+=`<p class="err" id="e"></p>`;
+  $("#v").innerHTML=h;
+  const acc=$("#acc");if(acc)acc.onclick=()=>{const d=$("#d").value;if(!d){$("#e").textContent="Pick the delivery date";return}acc.disabled=true;call({op:"p_accept",date:d,note:$("#n").value}).then(x=>show(x.order?x:Object.assign({order:o},x),x.ok?"Thank you — order accepted.":"")).catch(()=>{acc.disabled=false;$("#e").textContent="No connection — try again"})};
+  const del=$("#del");if(del)del.onclick=()=>{del.disabled=true;call({op:"p_deliver",amount:$("#a").value,invoiceNo:$("#i").value}).then(x=>show(x.order?x:Object.assign({order:o},x),x.ok?"Thank you — marked delivered. We will count and confirm.":"")).catch(()=>{del.disabled=false;$("#e").textContent="No connection — try again"})};
+}
+if(!O||!T) show({error:"This link is not complete. Please use the link from the email."});
+else call({op:"p_view"}).then(r=>show(r)).catch(()=>show({error:"Could not load the order — check your connection and reload."}));
+</script></body></html>
